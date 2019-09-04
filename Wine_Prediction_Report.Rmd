@@ -1,0 +1,618 @@
+---
+title: "Wine Quality Prediction"
+author: "Marcus Vinicius Goulart Gonzaga Junior"
+date: "8/11/2019"
+output:
+  word_document:
+    toc: yes
+    toc_depth: '3'
+    fig_width: 7
+    fig_height: 6
+    fig_caption: true
+    df_print: kable  
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+    df_print: kable
+    latex_engine: xelatex
+  html_notebook:
+    theme: cosmo
+    toc: yes
+    number_sections: true
+  html_document:
+    
+    df_print: paged
+    toc: yes
+    toc_depth: '3'
+    theme: cosmo
+---
+
+\pagebreak
+# Summary
+
+The determination of the sensorial quality of wines is of great interest to the entire wine industry. From producers to consumers, there is high interest in the subject. There are several motivations, ranging from the cost of certification to the definition of market prices. In this study, we propose to use machine learning techniques to predict wine taste preferences based on physicochemical properties from wine analyses. We use data obtained from the UCI Machine Learning Repository, [Cortez et al., 2009], a significant dataset, with physicochemical properties as expert evaluation as well. White Vinho Verde samples were obtained from Minho, a northwest region of Portugal. The results suggest that the field of sensorial taste prediction is reliable.  
+
+
+# Introduction
+
+Wine quality classification is an exciting task since taste is the least understood of the human senses. The paper titled Modeling wine preferences by data mining from physicochemical properties, [Cortez et al., 2009], inspired this work.  At the Cortez study, the objective was focused on the certification process that the wine industry needs to carry out. This process is currently carried out by experts and is usually slow and expensive, and prediction models is a process to reduce costs and increase efficiency. Here, we use a different approach, changing the focus from industrial certification processes, and looking for a market view. In that context, the relevant question is to answer if we can predict if wine is excellent ou very poor, the extremes of the curve is what matter in this perspective. So The main goal is to know what level of precision a model can predict the quality of the very best and inferior wines. Another Relevant aspect is in trying to understand some relationship among data, to obtain some insights that may be important to improve the knowledge of the wine quality. Unlike the original work, we used a classification strategy rather than regression. We also re-arrange dataset in just three category groups:  Best, Normal, and Bad. The result was a simplified data structure and easy comprehension since we are looking for extremes of quality levels, seeking excellent and inferior wines. Finally, we use some different models that the original work made, trying to discover the best model applies in this context.
+ 
+
+
+```{r  include=FALSE, echo=FALSE}
+# checks if the packages have been previously installed. if not, install them. 
+
+if(!require(devtools)) install.packages("devtools", repos = "http://cran.us.r-project.org") 
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org") 
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org") 
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org") 
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org") 
+if(!require(corrplot)) install.packages("corrplot", repos = "http://cran.us.r-project.org") 
+if(!require(tidyr)) install.packages("tidyr", repos = "http://cran.us.r-project.org") 
+if(!require(GGally)) install.packages("GGally", repos = "http://cran.us.r-project.org") 
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org")
+if(!require(factoextra)) install.packages("factoextra", repos = "http://cran.us.r-project.org")
+if(!require(mlbench)) install.packages("mlbench", repos = "http://cran.us.r-project.org")
+if(!require(kableExtra)) install.packages("kableExtra", repos = "http://cran.us.r-project.org")
+if(!require(magrittr)) install.packages("magrittr", repos = "http://cran.us.r-project.org")
+if(!require(flextable)) install.packages("flextable", repos = "http://cran.us.r-project.org")
+if(!require(PerformanceAnalytics)) install.packages("PerformanceAnalytics", repos = "http://cran.us.r-project.org")
+
+
+# sure that packages are available to R
+library(magrittr)
+library(flextable)
+library(devtools)
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(corrplot)
+library(tidyr)
+library(GGally)
+library(ggplot2)
+library(tidyverse)
+library(gridExtra)
+library(factoextra)
+library(mlbench)
+library(kableExtra)
+library(magrittr)
+library(flextable)
+library(PerformanceAnalytics)
+
+
+
+
+```
+
+\pagebreak
+# Dataset:
+
+
+The dataset used can be obteined by the link:
+https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/ and the name of file is winequality-white.csv
+
+The Input Variables ((based on physicochemical tests) are:
+- **fixed acidity:** most acids involved with wine or fixed or nonvolatile (do not evaporate readily)
+
+- **volatile acidity:** the amount of acetic acid in wine,hich at too high of levels can lead to an unpleasant, vinegar taste
+
+- **citric acid:** found in small quantities, citric acid can add 'freshness' and flavor to wines
+
+- **residual sugar:** the amount of sugar remaining after fermentation stops , it's rare to find wines with less than 1 gram/liter and wines with greater than 45 grams/liter are considered sweet
+
+
+- **chlorides:** the amount of salt in the wine
+
+- **free sulfur dioxide:** the free form of SO2 exists in equilibrium between molecular SO2 (as a dissolved gas) and bisulfite ion; it prevents microbial growth and the oxidation of wine
+
+- **total sulfur dioxide:** amount of free and bound forms of S02; in low concentrations, SO2 is mostly undetectable in wine, but at free SO2 concentrations over 50 ppm, SO2 becomes evident in the nose and taste of wine
+
+- **density:** the density of water is close to that of water depending on the percent alcohol and sugar content
+
+- **pH:** describes how acidic or basic a wine is on a scale from 0 (very acidic) to 14 (very basic),most wines are between 3-4 on the pH scale
+
+- **sulphates:** a wine additive which can contribute to sulfur dioxide gas (S02) levels, wich acts as an antimicrobial and antioxidant
+
+- **alcohol:** the percent alcohol content of the wine.
+
+
+The output Varialble (based in sensory data):
+
+**quality:** score between 0 to 10 maded in blind mode by experts
+
+```{r import, echo=FALSE, include=FALSE}
+#import dataset
+Wines <- read.csv(file="https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv", header=TRUE, sep=";")
+
+```
+
+```{r global_settings, echo=FALSE}
+options(warn=-1) # supress warning to sure that will be not printing warnings at finished output doc 
+```
+
+
+```{r prepare, echo=FALSE, include=FALSE}
+# change variables character . to _ in order to avoid R names incompatibility
+# also use short names to prevent break legends
+Wines <- Wines %>% 
+  rename(
+  fix_acidity = fixed.acidity,
+  vol_acidity = volatile.acidity,
+  cit_acid  = citric.acid ,
+  res_sugar = residual.sugar ,
+  free_dioxide =  free.sulfur.dioxide,
+  total_dioxide = total.sulfur.dioxide
+)
+
+# create INPUT and OUTPUT variables sub datasets
+INPUT <- Wines[1:11] # first 11 columns
+OUTPUT <- Wines[12] # last column quality
+```
+
+
+
+# Exploratory Data Analysis
+
+Summary Dataset
+```{r echo=FALSE, include=T}
+summary(Wines )
+```
+
+
+It seems that there is symmetry in several distributions since the majority of features have very similar median and mean. 
+Let´s see on the graph:
+
+
+```{r echo=FALSE}
+g <- Wines[,1:11] %>%
+  keep(is.numeric) %>%                     # Keep only numeric columns
+  gather() %>%                             # Convert to key-value pairs
+  ggplot(aes(value)) + 
+     
+    facet_wrap(~key, scales = "free") +   # In separate panels
+    geom_density()
+  
+  plot(g)
+  
+
+
+
+```
+
+Except for residual sugar and alcohol, they looks have symmetrical distribution, although some have outliers in the positive side. 
+Nothing special has been found so far, let’s start a bivariate analysis with the correlation matrix.
+
+```{r bivariate_correlation, echo=FALSE , include=T}
+
+
+chart.Correlation(Wines,  histogram=TRUE, pch=19)
+
+
+
+```
+
+The relationships among quality and independent variables, alcohol has the strongest correlation, the second is density, and the third is chlorides.
+Since the correlation between density and alcohol is -0.78, the fact that they together seemed natural.
+
+
+
+```{r echo=FALSE}
+
+
+
+values <- c("0.44","-0.31", "-0.21")
+vars <- c("alcohol","density","chlorides")
+tb <- tibble( variable = vars, correlation = values)
+ft <- flextable(tb)
+ft <- add_header_lines(ft, 
+  values = "correlations among quality ")
+ft
+
+
+
+```
+
+
+
+
+In terms of relationships between independent variables, some strong correlations are observed:
+
+
+```{r echo=FALSE ,include=TRUE}
+values <- c("0.84","0.62", "0.53")
+vars <- c("residual sugar - density","free sulfur dioxide - total sulfur dioxide","total sulfur dioxide - density")
+tb <- tibble( variables = vars, correlation = values)
+ft <- flextable(tb)
+ft <- add_header_lines(ft, 
+  values = "high correlated independent variables ")
+ft
+```
+
+Plotting variables distribution relative as quality
+
+```{r box_features, echo=FALSE}
+grey_theme <- theme(axis.text.x = element_text(colour = "grey20", size = 10, angle = 90, hjust = 0.5, vjust = 0.5),
+                          axis.text.y = element_text(colour = "grey20", size = 8),
+                          text = element_text(size = 10),
+                    legend.position="none")
+
+Wines%>%
+  gather(-quality, key = "var", value = "value") %>% 
+  ggplot(aes(x = quality, y = value, group = quality)) +
+    geom_boxplot() +
+    facet_wrap(~ var, scales = "free", ncol = 4)+
+   grey_theme
+```
+
+Alcohol seems to have the most variation among quality. Density goes down when quality improves.
+Plot zooming to see it in detail:
+
+
+```{r echo=FALSE, include=TRUE}
+ggplot(data = Wines, aes(x=as.factor(quality), y=alcohol)) + geom_boxplot() +
+   labs(x= 'Quality', y= 'Alcohol (% by vol)',
+       title= 'Quality Vs. Alcohol ')
+
+
+```
+
+
+```{r echO=FALSE, include=FALSE}
+ggscatmat(Wines, columns = 1:11, alpha=0.8)
+```
+
+# Data Wrangling
+
+
+```{r data_transform, echo=FALSE, include=FALSE}
+
+# create new column CatQuality with 3 factors
+## create dataframe from transformation of original dataset
+dataset <- mutate(Wines, CatQuality = ifelse(quality %in% 0:4, 0,
+                                     ifelse(quality %in% 5:7, 1,
+                                            ifelse(quality %in% 8:10, 2,99))))
+
+
+
+dataset$CatQuality <- as.factor(dataset$CatQuality)      # turn CatQuality to factor  
+dataset$quality = NULL # erase variable quality
+
+
+# Rename all levels, by name then numbers
+levels(dataset$CatQuality) <- list(bad=0, normal=1, best=2)
+
+# use variable names as standard and i never use this names to other propose
+X <- colnames(dataset)[1:11] # define independent variable names
+Y <- "CatQuality" # dependent variable
+
+
+```
+
+As we plan, we transform the quality parameter more simply. Bad, for grades 3 and 4, Best for grades 8 and 9, and Normal to wines that obtained grading 5,6 or 7. After transformation, only remains 3 categories. As expected, since the dataset is very unbalanced, the Best wines and Worst corresponds to about 3.5% each of Total.
+```{r plot_new_dataset, echo=FALSE, include=TRUE}
+dist <- table(dataset$CatQuality)
+barplot(dist, main="New wine quality distribution", 
+        col=grey.colors(3),
+         legend = dist,
+   xlab="Quality", ylab = "Count")
+```
+
+# More Analysis
+```{r dens_plot, echo=FALSE}
+p <- ggplot(dataset, aes(alcohol)) + geom_density(aes(fill=CatQuality), alpha=1/4) +
+    labs( title= 'Alcohol distribution accordingly to Quality levels')
+
+flt <- filter(dataset, CatQuality != 'normal')
+plt <- ggplot(flt, aes(x=density, y=alcohol, color=CatQuality)) +
+  geom_point(position='jitter',size = 1) + 
+  geom_smooth(method =  'loess') +
+  xlim(min(flt$density), quantile(flt$density, prob=0.99)) +
+  ylim(min(flt$alcohol), quantile(flt$alcohol, prob=0.99)) +
+ labs(x= 'Density (c/cm³)', y= 'Alcohol (% by vol)',
+       title= 'Alcohol Vs. Density accordingly to extreme Quality levels')
+ grid.arrange(p, plt)
+```
+
+Points to more Alcohol and more density comes to better quality
+```{r box_plot_features, echo=FALSE ,include=FALSE}
+
+featurePlot(x = dataset[, 1:11], 
+            y = dataset$CatQuality, 
+            plot = "box", 
+          
+            scales = list(y = list(relation="free"),
+                          x = list(rot = 90)),  
+            layout = c(4,1 ), 
+           )
+
+```
+
+Another view of the Relationship of Alcohol and density relationship quality
+
+```{r correlation_resudual_density , echo=FALSE ,include=TRUE}
+
+flt <- filter(dataset, CatQuality != 'normal')
+plt <- ggplot(dataset, aes(x=density, y=res_sugar, color=CatQuality)) +
+  geom_point(position='jitter',size = 1) + 
+  geom_smooth(method =  'lm') +
+  xlim(min(flt$density), quantile(flt$density, prob=0.97)) +
+  ylim(min(flt$res_sugar), quantile(flt$res_sugar, prob=0.98)) +
+ labs(x= 'Density (mg/dm³)', y= 'Residual Sugar (g/L)',
+       title= 'Residual Sugar Vs. Density accordingly  Quality levels')
+plt
+```
+
+For the same density, higher residual sugar seems to have better quality. 
+
+```{r alcohol_significance, echo=FALSE}
+ggplot(dataset, aes(x=CatQuality, y=alcohol, fill=CatQuality)) + 
+  geom_boxplot() + 
+  stat_summary(fun.data=mean_cl_normal, geom="errorbar", 
+               color='red', size=1) +
+  ylim(quantile(dataset$alcohol, prob=0.00), 
+       quantile(dataset$alcohol, prob=1)) +
+  ggtitle("Range of Alcohol per Quality Level") + 
+  xlab("Quality") +
+  ylab("Alcohol (% by vol)") +
+  theme(title=element_text(size=11, face="bold"),
+        axis.title=element_text(size=10), 
+        axis.text=element_text(size=10),
+        legend.position="none")
+```
+
+Red Bars shows 95% confidence, indicates that more alcohol tends to more quality.
+
+```{r free_significance, echo=FALSE}
+ggplot(dataset, aes(x=CatQuality, y=free_dioxide, fill=CatQuality)) + 
+  geom_boxplot() + 
+  stat_summary(fun.data=mean_cl_normal, geom="errorbar", 
+               color='red', size=1) +
+  ylim(quantile(dataset$free_dioxide, prob=0.00), 
+       quantile(dataset$free_dioxide, prob=.95)) +
+  ggtitle("Range of Free dioxide per Quality Level") + 
+  xlab("Quality") +
+  ylab("Free Dioxide (mg/l )") +
+  theme(title=element_text(size=11, face="bold"),
+        axis.title=element_text(size=10), 
+        axis.text=element_text(size=10),
+        legend.position="none")
+
+```
+Free Dioxide tends to less quality, especially to bad.
+
+# Modeling
+
+## Divide Dataset
+First we divide a dataset in two parts, Training with 80% of data, and Testing wine with 20% of dataset.
+```{r data_partition , echo=FALSE, include=TRUE}
+set.seed(16784568)
+
+trainIndex <- createDataPartition(dataset$CatQuality, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+
+winesTrain <- dataset[ trainIndex,]
+winesTest  <- dataset[-trainIndex,]
+
+
+```
+
+Now we aplly some of best Machine Learning classification algorithms. We will try SVM - Support-vector machine, GBM - Gradient boost Machine,  RF - Random Forest and XGB - XGBoost
+
+## SVM  Support-vector machine
+
+
+```{r SVM_model, echo=FALSE, include=T}
+
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+set.seed(57453)
+ 
+svm_model <- train(CatQuality ~., data = winesTrain, method = "svmLinear",
+                 trControl=trctrl,
+                 preProcess = c("center", "scale"),
+                 tuneLength = 10)
+svm_fit <- predict(svm_model, newdata = winesTest)
+svm_cm <- confusionMatrix(svm_fit, winesTest$CatQuality )
+#as.table(svm_cm) # print cm 
+svm_cm
+```
+The result seems strange since the prediction SMV model  classificate all wines as Normal. Lets check in Original dataset to try deep understand 
+```{r SVM_Original, echo=FALSE, include=TRUE  }
+
+set.seed(9970)
+Wines$quality <- as.factor(Wines$quality)
+train <- createDataPartition(Wines$quality, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+
+train <- Wines[ trainIndex,]
+test  <- Wines[-trainIndex,]
+
+
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+set.seed(9573453)
+ 
+svm <- train(quality ~., data = train, method = "svmLinear",
+                 trControl=trctrl,
+                 preProcess = c("center", "scale"),
+                 tuneLength = 10)
+sv <- predict(svm, newdata = test)
+sv_cm <- confusionMatrix(sv, test$quality )
+#as.table(sv_cm)
+sv_cm
+```
+
+The confusion matrix aplied at all categorical quality variables helps to clarify. The prediction tends to go center, maybe because the dataset is so unbaleced. The best wines (quality 8 and 9) as predicted as (6), and bad quality wines(quality 3 and 4) was predicted by model as (5 and 6).
+
+## GBM Gradient Boost Machine
+
+```{r gbm_model, echo=FALSE}
+
+set.seed(6580349)
+fitControl <- trainControl(## 10-fold CV
+                           method = "repeatedcv",
+                           number = 10,
+                           ## repeated ten times
+                           repeats = 10)
+
+gbm_model <- train(CatQuality ~ ., data = winesTrain, 
+                 method = "gbm", 
+                 trControl = fitControl,
+                 ## This last option is actually one
+                 ## for gbm() that passes through
+                 verbose = FALSE)
+
+
+gbm_fit <- predict(gbm_model,winesTest)
+gbm_cm <- confusionMatrix(gbm_fit, winesTest$CatQuality)
+#as.table(gbm_cm)
+gbm_cm
+
+```
+
+
+
+```{r Neural_NN, echo=FALSE, include=FALSE }
+set.seed(5165765)
+nn_model <-  train(CatQuality ~ ., 
+                data = winesTrain, 
+                method = "nnet")
+             
+
+nn_fit <-predict(nn_model, winesTest)
+# Create confusion matrix
+cmNN_cm <-confusionMatrix(nn_fit, winesTest$CatQuality)
+#as.table(cmNN_cm)
+cmNN_cm
+```
+
+
+## RF Random Forest
+```{r random_forest, echo=FALSE, include=TRUE}
+set.seed(13131)
+rf_model <- train(CatQuality ~ ., 
+                data = winesTrain, 
+                method = "rf")
+
+rf_fit <- predict(rf_model,winesTest)
+rf_cm <- confusionMatrix(rf_fit, winesTest$CatQuality)
+#as.table(rf_cm)
+rf_cm 
+
+
+```
+
+
+## XGB Extreme Gradient Boost
+```{r xgb, echo=FALSE, include=TRUE}
+
+set.seed(4757656)
+ControlParamteres <- trainControl(method = "cv",
+                                  number = 5,
+                                  savePredictions = TRUE,
+                                  classProbs = TRUE
+)
+
+parametersGrid <-  expand.grid(eta = 0.1, 
+                            colsample_bytree=c(0.5,0.7),
+                            max_depth=c(1,3,6,9),
+                            nrounds=100,
+                            gamma=1,
+                            min_child_weight=2,
+                            subsample=1
+                            )
+
+
+xg_model <- train(CatQuality~., 
+                  data = winesTrain,
+                  method = "xgbTree",
+                  trControl = ControlParamteres,
+                  tuneGrid=parametersGrid,
+                  grid=parametersGrid)
+
+xgb_fit <- predict(xg_model,winesTest)
+xgb_cm <- confusionMatrix(xgb_fit, winesTest$CatQuality)
+
+#as.table(xgb_cm)
+xgb_cm 
+
+
+
+```
+
+# Model Benchmark
+
+Accuracy commonly used to overall evaluate classification models. In this case, this measurement is not the most appropriate, since the data are very unbalanced concerning quality, the vast majority of the data are of medium quality, which implies a possible distortion of interpretation. Then we use Precision and Balanced Accuracy as the primary evaluation criterion. Note that False positives are less desirable than false negatives in our context. It means that it is preferable to not predict some Wines as Best than predict some Bad Wines as Best. The same apply to prediction to Bad Wines
+
+### Best Wines  
+
+```{r best_bench,  echo=FALSE }
+best_sens <- c(svm_cm[["byClass"]][3], gbm_cm[["byClass"]][3], rf_cm[["byClass"]][3],xgb_cm[["byClass"]][3])
+best_spec <- c(svm_cm[["byClass"]][6], gbm_cm[["byClass"]][6], rf_cm[["byClass"]][6],xgb_cm[["byClass"]][6])
+best_balance <- c(svm_cm[["byClass"]][33], gbm_cm[["byClass"]][33], rf_cm[["byClass"]][33],xgb_cm[["byClass"]][33])
+best_prec <- c(svm_cm[["byClass"]][15], gbm_cm[["byClass"]][15], rf_cm[["byClass"]][15],xgb_cm[["byClass"]][15])
+
+models_name <- c("SVM","GBM",
+                 "RF","XGB")
+tb <- tibble( Model = models_name, Sensitivity = best_sens, 
+              Specificity = best_spec , Balanced = best_balance, Precision = best_prec)
+ft <- flextable(tb)
+ft <- add_header_lines(ft, 
+  values = "Best Wines predictor Model Benchmark")
+ft
+```
+### Bad Wines 
+
+```{r bad_bench,  echo=FALSE }
+bad_sens <- c(svm_cm[["byClass"]][1], gbm_cm[["byClass"]][1], rf_cm[["byClass"]][1],xgb_cm[["byClass"]][1])
+bad_spec <- c(svm_cm[["byClass"]][4], gbm_cm[["byClass"]][4], rf_cm[["byClass"]][4],xgb_cm[["byClass"]][4])
+bad_balance <- c(svm_cm[["byClass"]][31], gbm_cm[["byClass"]][31], rf_cm[["byClass"]][31],xgb_cm[["byClass"]][31])
+bad_prec <- c(svm_cm[["byClass"]][13], gbm_cm[["byClass"]][13], rf_cm[["byClass"]][13],xgb_cm[["byClass"]][13])
+
+
+tb2 <- tibble( Model = models_name, Sensitivity = bad_sens, Specificity = bad_spec , 
+                Balanced = bad_balance,  Precision = bad_prec)
+ft2 <- flextable(tb2)
+ft2 <- add_header_lines(ft2, 
+  values = "Bad Wines predictor Model Benchmark")
+ft2
+```
+
+
+RF - Random Forest, outperformed the others, in best Wines category and also Bad Wines.
+The Variable ranking importance considering Random Forest Model:
+
+
+```{r echo=FALSE}
+importance_rf <- varImp(rf_model)
+plot(importance_rf)
+```
+
+# Results
+
+The results show a high correlation between Human quality Wines evaluation, and Machine Learning by Phisicalquimical dataset. Although this study is not able to causality levels, we believe that it is enough to have the confidence to continuos investigation in this field. Other datasets, different models, data engineering,  hyperparameters tunning have to be considered. The main challenge is increasing Sensitivity levels at the same time maintain high levels of Specificity since usually that means trade-off.
+
+Considering Random Forest, the best performed of Machine Learning Model used in this analysis, 100% considered as excellent coincided with the expert's assessment. For the lowest quality wines, the result was 87%. Even though this result in terms of precision may be considering very significant, the other side is the low Sensitivity rate shows that only 36% of Best Wines as recognized as is, and for Bad wines result is 19%. The others predicted as Normal. Translating this in simple words, we say:
+
+"If Algorithm tells that a Wine is Good or some Wine is Bad, you can trust. However, you have to know that many Good Wines and Bad Wines will be out of the list since the model predicts most of them as Normal quality."
+
+# References
+
+P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis. Modeling wine preferences by data mining from physicochemical properties. In Decision Support Systems, Elsevier, ISSN: 0167-9236.
+https://www.sciencedirect.com/science/article/pii/S0167923609001377
+
+https://archive.ics.uci.edu/ml/datasets/wine+quality
+
+Rafael A. Irizarry, Introduction to Data Science Data Analysis and Prediction Algorithms with R. 2019-04-22.
+https://rafalab.github.io/dsbook/
+
+Hadley Wickham & Garret Grolemund, R for Daqta Science. O´REILLY 2016
+
+
+
+
+
+
+
