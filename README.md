@@ -1,2 +1,2 @@
 # wines
-Wines Quality Analysis and Prediction - Harvard Capstone Project
+Wines Quality Analysis and Prediction - Harvard University Capstone Project II
